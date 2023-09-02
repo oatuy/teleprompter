@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teleprompter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            color: #fff;
+            overflow: hidden;
+            padding: 0 5%;
+        }
+        #progressBar {
+            width: 80%;
+            margin: 0 auto;
+            display: block;
+            background-color: gray;
+            height: 5px;
+        }
+        #teleprompter {
+            font-size: 2em;
+            width: 100%;
+            margin: 0 auto;
+            text-align: center;
+            position: absolute;
+            top: 75%; 
+            left: 0;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        #controls {
+            position: fixed;
+            bottom: 10px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 5%;
+            transition: opacity 0.3s; 
+        }
+        #controls.transparent {
+            opacity: 0.5; 
+        }
+        #buttonsContainer {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        #slidersContainer {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+        }
+        #inputText {
+            width: 90%;
+            position: fixed;
+            bottom: 150px;
+            left: 5%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="teleprompter"></div>
+    <textarea id="inputText" rows="4"></textarea>
+    <progress id="progressBar" value="0" max="100"></progress>
+    <div id="controls">
+        <div id="buttonsContainer">
+            <button id="toggleButton" onclick="toggleTeleprompter()">Play</button>
+            <button id="pauseButton" onclick="pauseResumeTeleprompter()">Pause</button>
+            <button id="alignButton" onclick="toggleAlignment()">Left</button>
+            <button id="toggleProgressBar" onclick="toggleProgressBar()">Hide Progress</button>
+            <button id="fullscreenButton" onclick="toggleFullscreen()">Enter Fullscreen</button>
+        </div>
+        <div id="slidersContainer">
+            Font Size: <input type="range" id="fontSizeSlider" min="20" max="140" value="40" oninput="adjustFontSize(this.value)">
+            Scroll Speed: <input type="range" id="speedSlider" min="0.1" max="10" step="0.1" value="1" oninput="adjustSpeed(this.value)">
+            Line Spacing: <input type="range" id="lineSpacingSlider" min="1" max="3" step="0.1" value="1" oninput="adjustLineSpacing(this.value)">
+        </div>
+    </div>
+
+    <script>
+        let teleprompter = document.getElementById('teleprompter');
+        let interval = null;
+        let isPaused = false;
+
+        function scrollText() {
+            if (!isPaused) {
+                let position = teleprompter.offsetTop;
+                // Use parseFloat to handle decimal values
+                position -= parseFloat(document.getElementById('speedSlider').value);
+                teleprompter.style.top = position + "px";
+            }
+        }
+
+        function startTeleprompter() {
+            let text = document.getElementById('inputText').value;
+            // Convert < and > to their HTML entities
+            text = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            text = text.replace(/\n/g, '<br>');
+            teleprompter.innerHTML = text;
+            teleprompter.style.top = "70%";
+            document.getElementById('inputText').style.display = "none";
+            interval = setInterval(scrollText, 30);
+            document.getElementById('toggleButton').innerText = "Stop";
+            document.getElementById('pauseButton').innerText = "Pause";
+            document.getElementById('controls').classList.add('transparent');
+        }
+
+        function stopTeleprompter() {
+            clearInterval(interval);
+            interval = null;
+            isPaused = false;
+            document.getElementById('inputText').style.display = "block";
+            document.getElementById('toggleButton').innerText = "Play";
+            document.getElementById('controls').classList.remove('transparent');
+        }
+
+        function toggleAlignment() {
+            if (teleprompter.style.textAlign === "left") {
+                teleprompter.style.textAlign = "center";
+                document.getElementById('alignButton').innerText = "Left";
+            } else {
+                teleprompter.style.textAlign = "left";
+                document.getElementById('alignButton').innerText = "Center";
+            }
+        }
+
+        function toggleTeleprompter() {
+            if (interval) {
+                stopTeleprompter();
+            } else {
+                startTeleprompter();
+            }
+        }
+
+        function pauseResumeTeleprompter() {
+            if (interval) {
+                if (isPaused) {
+                    isPaused = false;
+                    document.getElementById('pauseButton').innerText = "Pause";
+                    document.getElementById('controls').classList.add('transparent');
+
+                } else {
+                    isPaused = true;
+                    document.getElementById('pauseButton').innerText = "Resume";
+                    document.getElementById('controls').classList.remove('transparent');
+                }
+            }
+        }
+
+        function adjustFontSize(size) {
+            teleprompter.style.fontSize = (size / 20) + "em";
+        }
+
+        function adjustSpeed(speed) {
+            // Speed is already used in the scrolling function, so no additional action is needed
+        }
+
+        function adjustLineSpacing(value) {
+            teleprompter.style.lineHeight = value;
+        }
+
+        document.addEventListener('wheel', function(event) {
+            let position = teleprompter.offsetTop;
+            position -= event.deltaY;
+            teleprompter.style.top = position + "px";
+        });
+
+        // teleprompter.addEventListener('click', pauseResumeTeleprompter);
+
+        // Prevent scrolling of the background when scrolling over the textarea
+        document.getElementById('inputText').addEventListener('wheel', function(event) {
+            event.stopPropagation();
+        });
+
+        let isDragging = false;
+        let hasDragged = false;
+        let startY;
+        let disableClick = false; // New flag to disable click temporarily
+
+        // Start dragging
+        teleprompter.addEventListener('mousedown', function(event) {
+            isDragging = true;
+            hasDragged = false;
+            startY = event.clientY;
+        });
+
+        // Handle dragging
+        document.addEventListener('mousemove', function(event) {
+            if (isDragging) {
+                let deltaY = event.clientY - startY;
+                let position = teleprompter.offsetTop;
+                position += deltaY;
+                teleprompter.style.top = position + "px";
+                startY = event.clientY;
+                hasDragged = true;
+            }
+        });
+
+        // Stop dragging
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+            if (hasDragged) {
+                disableClick = true;
+                setTimeout(function() {
+                    disableClick = false;
+                }, 100); // Disable click for 0.1s
+            }
+        });
+
+        // Modified click event to check the disableClick flag
+        teleprompter.addEventListener('click', function() {
+            if (!disableClick) {
+                pauseResumeTeleprompter();
+            }
+        });
+
+        function scrollText() {
+            if (!isPaused) {
+                let position = teleprompter.offsetTop;
+                position -= parseFloat(document.getElementById('speedSlider').value);
+                teleprompter.style.top = position + "px";
+                // Check if the text has completely scrolled out of view
+                if (position + teleprompter.offsetHeight < 0) {
+                     stopTeleprompter();
+                }
+            }
+        }
+
+        function scrollText() {
+            if (!isPaused) {
+                let position = teleprompter.offsetTop;
+                position -= parseFloat(document.getElementById('speedSlider').value);
+                teleprompter.style.top = position + "px";
+                // Update progress bar
+                let totalScrollDistance = teleprompter.offsetHeight + window.innerHeight - (window.innerHeight * 0.5); // Subtracting the initial offset
+                let scrolledDistance = window.innerHeight * 0.5 - position; // Considering the text starts from the middle of the screen
+                let progress = (scrolledDistance / totalScrollDistance) * 100;
+                document.getElementById('progressBar').value = progress;
+                // Check if the text has completely scrolled out of view
+                if (position + teleprompter.offsetHeight < 0) {
+                    stopTeleprompter();
+                }
+            }
+        }
+
+        function toggleProgressBar() {
+            let progressBar = document.getElementById('progressBar');
+            if (progressBar.style.display === "none") {
+                progressBar.style.display = "block";
+                document.getElementById('toggleProgressBar').innerText = "Hide Progress Bar";
+            } else {
+                progressBar.style.display = "none";
+                document.getElementById('toggleProgressBar').innerText = "Show Progress Bar";
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen();
+                } else if (document.documentElement.mozRequestFullScreen) {
+                    document.documentElement.mozRequestFullScreen();
+                } else if (document.documentElement.webkitRequestFullscreen) {
+                    document.documentElement.webkitRequestFullscreen();
+                } else if (document.documentElement.msRequestFullscreen) {
+                    document.documentElement.msRequestFullscreen();
+                }
+                document.getElementById('fullscreenButton').innerText = "Exit Fullscreen";
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+                document.getElementById('fullscreenButton').innerText = "Enter Fullscreen";
+            }
+        }
+
+        // Add mouseover and mouseout events to controls
+        document.getElementById('controls').addEventListener('mouseover', function() {
+            this.classList.remove('transparent');
+        });
+        document.getElementById('controls').addEventListener('mouseout', function() {
+            if (!isPaused) { // Only make it transparent if the teleprompter is playing
+                this.classList.add('transparent');
+            }
+        });
+
+    </script>
+</body>
+</html>
